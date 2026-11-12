@@ -82,6 +82,11 @@ sin tener que esperar en tiempo real ni usar la API real.
 No se necesita modificar el manifest ni el backend. No se prueban push ni sincronización
 con la app cerrada. Cambiar permisos no requiere borrar los datos del sitio ni sus pendientes.
 
+Para comprobar el sistema sin crear o editar contactos, conceder el permiso y pulsar
+**Probar notificación**. Debe mostrar el título **Prueba de notificación**, conservar
+agenda y cola, y no generar peticiones a la API. Si el sistema rechaza el envío, la pantalla
+debe informar el fallo y no afirmar que la prueba se envió. El botón no aparece sin permiso.
+
 ## Desconexión de la página y recarga PWA
 
 1. Con producción online, esperar en DevTools → Application → Service Workers a que

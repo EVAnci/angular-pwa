@@ -72,6 +72,8 @@
         (click)="systemNotifications.enable()" [disabled]="vm.systemNotifications.requesting">
         {{ vm.systemNotifications.requesting ? 'Solicitando permiso…' : 'Activar notificaciones' }}
       </button>
+      <button type="button" class="secondary notifications-test" *ngIf="vm.systemNotifications.availability === 'available' && vm.systemNotifications.permission === 'granted'"
+        (click)="systemNotifications.notifyTest()">Probar notificación</button>
       <button type="button" class="secondary notifications-refresh" *ngIf="vm.systemNotifications.availability === 'available' && vm.systemNotifications.permission !== 'default'"
         (click)="systemNotifications.refreshPermission()">Actualizar permisos</button>
       <p class="notice notification-notice" *ngIf="vm.systemNotifications.notice" role="status">{{ vm.systemNotifications.notice }}</p>

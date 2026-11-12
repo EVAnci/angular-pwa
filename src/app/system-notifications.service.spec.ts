@@ -175,4 +175,37 @@ describe('SystemNotificationsService', () => {
     expect(service.snapshot.availability).toBe('unsupported');
     expect(service.snapshot.notice).toContain('No se pudieron consultar los permisos');
   });
+
+  it('envía una prueba con mensaje y etiqueta diferentes de la sincronización', fakeAsync(() => {
+    browser.permission = 'granted';
+    service.notifyTest();
+    flushMicrotasks();
+    expect(browser.registration.showNotification).toHaveBeenCalledOnceWith('Prueba de notificación', {
+      body: 'Esta es una notificación de prueba de la agenda.',
+      icon: new URL('assets/icons/contact-192x192.png', document.baseURI).href,
+      tag: 'contacts-test',
+      lang: 'es',
+    });
+    expect(service.snapshot.notice).toBe('Notificación de prueba enviada al sistema.');
+    expect(browser.requestPermission).not.toHaveBeenCalled();
+  }));
+
+  it('no pide permiso ni envía pruebas si todavía no se concedió o se revocó', () => {
+    for (const permission of ['default', 'denied'] as const) {
+      browser.permission = permission;
+      service.notifyTest();
+    }
+    expect(browser.requestPermission).not.toHaveBeenCalled();
+    expect(browser.ready).not.toHaveBeenCalled();
+    expect(browser.registration.showNotification).not.toHaveBeenCalled();
+  });
+
+  it('no anuncia que la prueba fue enviada si el sistema la rechaza', fakeAsync(() => {
+    browser.permission = 'granted';
+    browser.registration.showNotification.and.callFake(() => Promise.reject(new Error('Blocked')));
+    service.notifyTest();
+    flushMicrotasks();
+    expect(service.snapshot.notice).toContain('No se pudo mostrar la notificación del sistema');
+    expect(service.snapshot.notice).not.toContain('prueba enviada');
+  }));
 });

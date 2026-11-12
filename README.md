@@ -233,6 +233,11 @@ la estabilidad inicial ni el registro del service worker, y se cancela al destru
    ajustes del sitio y volver a la app o pulsar **Actualizar permisos**. Si se cierra la
    solicitud sin decidir, se puede volver a pulsar el botón de activación.
 
+Con el permiso concedido aparece **Probar notificación**. Envía un mensaje de prueba
+con una etiqueta distinta de la sincronización, sin modificar contactos, guardar datos
+ni consultar la API. Al aceptarlo el navegador, la pantalla indica que la prueba se envió
+al sistema; esto no garantiza que No molestar u otros ajustes permitan ver un banner.
+
 Se utiliza `ServiceWorkerRegistration.showNotification()` del worker Angular existente,
 sin modificar el backend, añadir servicios externos, suscripciones push ni permisos en
 el manifiesto. El mensaje es genérico: no muestra nombres, correos ni teléfonos.

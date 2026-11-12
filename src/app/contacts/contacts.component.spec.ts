@@ -243,6 +243,7 @@ describe('ContactsComponent', () => {
     fixture.detectChanges();
     expect(text()).toContain('Permiso concedido');
     expect(fixture.nativeElement.querySelector('.notifications-enable')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.notifications-test')).not.toBeNull();
   }));
 
   it('explica el permiso bloqueado sin volver a solicitarlo', fakeAsync(() => {
@@ -253,6 +254,7 @@ describe('ContactsComponent', () => {
     flushMicrotasks();
     fixture.detectChanges();
     expect(text()).toContain('Notificaciones bloqueadas');
+    expect(fixture.nativeElement.querySelector('.notifications-test')).toBeNull();
     (fixture.nativeElement.querySelector('.notifications-refresh') as HTMLButtonElement).click();
     expect(notificationsBrowser.requestPermission).toHaveBeenCalledTimes(1);
     notificationsBrowser.permission = 'granted';
@@ -278,4 +280,25 @@ describe('ContactsComponent', () => {
     expect(text()).toContain('Se necesita HTTPS o localhost');
     expect(notificationsBrowser.requestPermission).not.toHaveBeenCalled();
   });
+
+  it('el botón de prueba notifica sin cambiar contactos ni consultar la API', fakeAsync(() => {
+    http.expectOne(url).flush({ contacts: [CONTACT] });
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.notifications-test')).toBeNull();
+    notificationsBrowser.permission = 'granted';
+    component.systemNotifications.refreshPermission();
+    fixture.detectChanges();
+    const before = component.store.snapshot;
+    const writes = memory.writes;
+    (fixture.nativeElement.querySelector('.notifications-test') as HTMLButtonElement).click();
+    flushMicrotasks();
+    fixture.detectChanges();
+    expect(notificationsBrowser.registration.showNotification).toHaveBeenCalledTimes(1);
+    expect(notificationsBrowser.registration.showNotification.calls.mostRecent().args[0]).toBe('Prueba de notificación');
+    expect(text()).toContain('Notificación de prueba enviada al sistema.');
+    expect(component.store.snapshot).toBe(before);
+    expect(memory.writes).toBe(writes);
+    expect(fixture.nativeElement.querySelector('.sync-notification')).toBeNull();
+    http.expectNone(() => true);
+  }));
 });

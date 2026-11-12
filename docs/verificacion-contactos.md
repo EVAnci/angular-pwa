@@ -4,7 +4,7 @@
 
 - Compilación de producción con `npm run build`: correcta; se generó `ngsw.json`.
 - `CHROME_BIN=/usr/bin/chromium npm test -- --watch=false --browsers=ChromeHeadless`:
-  **95 pruebas correctas** en Chromium 156, con Node 22.23.4 (incluye permisos y notificaciones simulados).
+  **99 pruebas correctas** en Chromium 156, con Node 22.23.4 (incluye permisos y notificaciones simulados).
 - Las pruebas usan HTTP simulado y almacenamiento en memoria: no modifican la API,
   SQLite ni el almacenamiento real del usuario.
 - Comprobación de navegador sobre la compilación de producción, en Chromium headless
@@ -90,6 +90,17 @@ no impide compilar y no se actualizaron dependencias fuera del alcance.
   en `503`. Recarga offline y distribución móvil/escritorio siguen funcionando.
 - Esa comprobación no interactuó con el diálogo real de permisos ni verificó visualmente
   un banner del sistema operativo; ambos siguen en la guía manual. No se probó en móviles reales.
+
+### Botón de prueba de notificación
+
+- Compilación correcta y suite ampliada a **99 pruebas correctas**.
+- Verificado con notificaciones simuladas que el botón requiere permiso concedido,
+  envía un mensaje de prueba distinto del de sincronización y no modifica contactos,
+  almacenamiento ni cola, ni hace peticiones a la API.
+- Un envío rechazado no se anuncia como prueba enviada y conserva el manejo de errores.
+- Comprobación adicional con Chromium headless y worker real: al pulsar el botón se
+  registró la notificación `contacts-test` con el título y cuerpo de prueba, sin cambios
+  en el documento local. Permiso concedido mediante CDP solo en el perfil temporal.
 
 ## Pendiente de comprobación manual
 

@@ -97,6 +97,19 @@ export class SystemNotificationsService {
   }
 
   notifySynced(): void {
+    this.showNotification('Agenda de contactos', 'Cambios sincronizados con la API.', 'contacts-sync');
+  }
+
+  notifyTest(): void {
+    this.showNotification(
+      'Prueba de notificación',
+      'Esta es una notificación de prueba de la agenda.',
+      'contacts-test',
+      'Notificación de prueba enviada al sistema.',
+    );
+  }
+
+  private showNotification(title: string, body: string, tag: string, successNotice: string | null = null): void {
     this.refreshPermission();
     if (this.snapshot.availability !== 'available' || this.snapshot.permission !== 'granted') return;
     // La espera del worker no debe bloquear ni la sincronización ni la estabilidad inicial de Angular.
@@ -106,21 +119,21 @@ export class SystemNotificationsService {
         concatMap(registration => {
           this.refreshPermission();
           if (this.snapshot.permission !== 'granted') return EMPTY;
-          return from(registration.showNotification('Agenda de contactos', {
-            body: 'Cambios sincronizados con la API.',
+          return from(registration.showNotification(title, {
+            body,
             icon: new URL('assets/icons/contact-192x192.png', document.baseURI).href,
-            tag: 'contacts-sync',
+            tag,
             lang: 'es',
           }));
         }),
         takeUntilDestroyed(this.destroyRef),
       ).subscribe({
-        next: () => this.publish({ notice: null }),
+        next: () => this.publish({ notice: successNotice }),
         error: error => {
           this.refreshPermission();
           this.publish({ notice: error instanceof TimeoutError
-            ? 'Las notificaciones del sistema aún no están listas. El aviso se conserva dentro de la app.'
-            : 'No se pudo mostrar la notificación del sistema. Se conserva el aviso dentro de la app; revisa los permisos del navegador y del sistema.' });
+            ? 'Las notificaciones del sistema aún no están listas. Inténtalo nuevamente; los avisos dentro de la app siguen disponibles.'
+            : 'No se pudo mostrar la notificación del sistema. Los avisos dentro de la app siguen disponibles; revisa los permisos del navegador y del sistema.' });
         },
       });
     });
