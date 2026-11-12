@@ -1,6 +1,11 @@
-# Agent Development Rules - PWA Angular API Cache
+# Agent Development Rules - PWA Angular de contactos
 
 Este documento define las reglas, convenciones y patrones de desarrollo para este proyecto PWA Angular.
+
+La aplicación vigente es la agenda descrita en `pwa.md` y `README.md`. El service worker
+cachea solo la interfaz; los contactos y la cola se guardan juntos en localStorage.
+`ContactsStoreService` publica estado inmutable y `ContactsSyncService` envía una sola
+cola ordenada. La URL base se centraliza en `src/app/api.config.ts`. No modificar el backend.
 
 ## 📋 Información del Proyecto
 
@@ -144,27 +149,17 @@ export class FeatureComponent implements OnInit {
   providedIn: 'root'
 })
 export class ApiService {
-  private readonly tasksUrl = 'API_URL/tasks';
+  private readonly contactsUrl = 'API_URL/api/contacts';
 
   constructor(private readonly http: HttpClient) { }
 
-  getTasks(): Observable<Task[]> {
-    return this.http.get<unknown>(this.tasksUrl).pipe(map(parseTasks));
+  getContacts(): Observable<Contact[]> {
+    return this.http.get<unknown>(this.contactsUrl).pipe(map(parseContacts));
   }
 }
 
-// parseTasks valida { "tasks": [...] } y lanza InvalidResponseError si no coincide
-```
-
-    }
-          }
-          return [];
-        }
-        return Array.isArray(response) ? response : [];
-      })
-    );
-  }
-}
+// parseContacts valida { "contacts": [...] } y lanza InvalidResponseError si no coincide.
+// Ejemplo abreviado: en la implementación real la URL se inyecta y hay timeout.
 ```
 
 ## 🎨 Templates HTML
@@ -225,6 +220,9 @@ export class ApiService {
 - **assets**: lazy load (imágenes, fuentes)
 
 #### Data Groups - Estrategias
+
+La agenda actual **no usa dataGroups**: su almacenamiento offline y sincronización son
+explícitos. Las estrategias de abajo son referencia general, no la configuración activa.
 
 1. **Sin Caché** (no configurar en ngsw-config.json)
    - Siempre desde red

@@ -1,39 +1,48 @@
-import { Injectable } from '@angular/core';
+import { Inject, Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
-import { Task } from './task';
-
-// La respuesta no tiene la forma { "tasks": [...] } documentada en el README
-export class InvalidResponseError extends Error {}
+import { Observable, map, timeout } from 'rxjs';
+import { API_BASE_URL, API_TIMEOUT_MS } from './api.config';
+import { Contact, InvalidResponseError, parseContact, parseContacts } from './contact';
 
 @Injectable({
   providedIn: 'root'
 })
 export class ApiService {
+  private readonly contactsUrl: string;
 
-  // Debe coincidir con la URL del grupo "tasks-api" en ngsw-config.json
-  private readonly tasksUrl = 'https://www.mockachino.com/13417dd4-d40d-4e/tasks';
-
-  constructor(private readonly http: HttpClient) { }
-
-  getTasks(): Observable<Task[]> {
-    return this.http.get<unknown>(this.tasksUrl).pipe(map(parseTasks));
+  constructor(
+    private readonly http: HttpClient,
+    @Inject(API_BASE_URL) baseUrl: string,
+    @Inject(API_TIMEOUT_MS) private readonly timeoutMs: number,
+  ) {
+    this.contactsUrl = `${baseUrl.replace(/\/+$/, '')}/api/contacts`;
   }
-}
 
-function parseTasks(body: unknown): Task[] {
-  const tasks = (body as { tasks?: unknown } | null)?.tasks;
-  if (!Array.isArray(tasks) || !tasks.every(isTask)) {
-    throw new InvalidResponseError('La API devolvió datos con un formato inesperado.');
+  getContacts(): Observable<Contact[]> {
+    return this.http.get<unknown>(this.contactsUrl).pipe(
+      timeout(this.timeoutMs), map(parseContacts),
+    );
   }
-  return tasks;
-}
 
-function isTask(value: unknown): value is Task {
-  const task = value as Partial<Task> | null;
-  return typeof task?.id === 'number'
-    && typeof task.title === 'string'
-    && task.title.trim() !== ''
-    && typeof task.completed === 'boolean';
+  putContact(contact: Contact): Observable<Contact> {
+    const { name, email, phone } = contact;
+    return this.http.put<unknown>(`${this.contactsUrl}/${contact.id}`, { name, email, phone }, {
+      observe: 'response',
+    }).pipe(timeout(this.timeoutMs), map(response => {
+      if (response.status !== 200 && response.status !== 201) {
+        throw new InvalidResponseError('La API no confirmó el guardado como se esperaba.');
+      }
+      return parseContact(response.body, contact.id);
+    }));
+  }
+
+  deleteContact(id: string): Observable<void> {
+    return this.http.delete(`${this.contactsUrl}/${id}`, { observe: 'response' }).pipe(
+      timeout(this.timeoutMs), map(response => {
+        if (response.status !== 204) {
+          throw new InvalidResponseError('La API no confirmó la eliminación con un estado 204.');
+        }
+      }),
+    );
+  }
 }

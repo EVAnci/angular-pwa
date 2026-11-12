@@ -1,213 +1,298 @@
-# PWA de consulta con Angular
+# Agenda de contactos PWA
 
-Aplicación web progresiva pequeña que consume una API de Mockachino. Basada en el repositorio de la cátedra [pwa-angular](https://github.com/fabiancontigliani/pwa-angular); el README original quedó en [docs/README-base.md](docs/README-base.md) y el enunciado en [docs/enunciado.md](docs/enunciado.md).
+Ejercicio didáctico con **Angular 18**, componentes standalone y una API independiente
+**Python + FastAPI + SQLite**. Reutiliza la aplicación de tareas: ahora permite listar,
+buscar por nombre/correo/teléfono y crear, editar y eliminar contactos, incluso offline.
+Usar **solo contactos ficticios**; no está preparada para datos personales reales.
 
-## Decisiones de diseño
+La interfaz utiliza un tema oscuro propio en CSS, con acentos lavanda/cian, tarjetas
+con iniciales, iconos SVG integrados y distribución adaptable a móvil. No requiere
+frameworks visuales, fuentes externas ni recursos de terceros; respeta la preferencia
+de movimiento reducido y mantiene estados de foco visibles para navegar con teclado.
 
-### 1. Alternativa elegida y alcance
+## Requisitos y proyectos
 
-**Lista de tareas.** La aplicación permite:
+- Node.js **22.x**, npm y Chrome/Chromium o Edge para probar la PWA.
+- Python **3.11–3.14** para el backend existente; ver su propio README.
+- Frontend: `Fabian/pwa/pwa-angular` (no la ubicación anterior `Fabian/pwa-angular`).
+- Backend: repositorio hermano `Fabian/pwa/api`. Este proyecto no lo implementa ni modifica.
 
-- Ver las tareas que devuelve la API.
-- Filtrarlas en el navegador: **Todas**, **Pendientes** o **Completadas**.
-- Pulsar **Actualizar** para volver a consultar la API.
+La implementación sigue [pwa.md](pwa.md). La entrega anterior se identifica con la
+etiqueta Git `entrega-original-tareas` (`641c679`); los cambios de documentación que
+estaban sin confirmar no forman parte de esa etiqueta. Se conserva el README de
+tareas, incluida la sección de ejecución agregada por el usuario, en
+[docs/README-tareas.md](docs/README-tareas.md). El [enunciado original](docs/enunciado.md),
+el [README base](docs/README-base.md), los mocks y las capturas de tareas son históricos,
+no evidencias de la nueva agenda.
 
-Es una aplicación **solo de consulta**: no crea, edita ni marca tareas. Para cambiar los datos se edita la respuesta configurada en Mockachino.
+## Instalación, build y ejecución
 
-Las pantallas de ejemplo del repositorio base (usuarios, tabla de usuarios, personas y contactos) se eliminan, y la lista de tareas pasa a ser la pantalla inicial.
+### 1. API (otra terminal, repositorio independiente)
 
-### 2. Campos de cada elemento
+Desde `../api`, siguiendo su README:
 
-| Campo | Tipo | Obligatorio | Descripción |
-| --- | --- | --- | --- |
-| `id` | número | Sí | Identificador único de la tarea |
-| `title` | texto | Sí | Descripción de la tarea, no vacía |
-| `completed` | booleano | Sí | `true` si la tarea está terminada |
-
-Los tres campos son obligatorios. Si la respuesta no tiene la forma del punto 3, o algún elemento no tiene estos campos con su tipo, la aplicación lo muestra como **error de formato**: no lo convierte en una lista vacía ni descarta elementos sin avisar.
-
-### 3. Endpoint y estructura JSON
-
-```text
-GET https://www.mockachino.com/13417dd4-d40d-4e/tasks
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-- Estado `200` y `Content-Type: application/json`.
-- CORS habilitado (`Access-Control-Allow-Origin: *`), así que el navegador puede leer la respuesta desde `localhost`.
-- El cuerpo es **un objeto con la propiedad `tasks`**, que contiene la lista de tareas:
+API: <http://localhost:8000>, disponibilidad: `/health`, documentación: `/docs`.
+SQLite persiste por defecto en `./data/contacts.db`, relativo al directorio desde el que
+se ejecuta la API. Su variable `DATABASE_PATH` permite cambiarlo. `CORS_ORIGINS`
+debe permitir `http://localhost:4200` y `http://localhost:8080`, como hace por defecto.
+El backend lee variables del entorno; no carga `.env` automáticamente.
+No se insertan contactos de ejemplo al arrancar.
 
-```json
-{
-  "tasks": [
-    { "id": 1, "title": "Revisar el repositorio base", "completed": true },
-    { "id": 2, "title": "Crear el endpoint en Mockachino", "completed": true },
-    { "id": 3, "title": "Conectar la API", "completed": false }
-  ]
-}
-```
+### 2. Angular
 
-No se usa una lista directa porque Mockachino solo acepta un objeto JSON como cuerpo de respuesta: al intentar guardar una lista responde `422` con `"value is not a valid dict"`. El servicio espera exactamente esta forma: lee `tasks` y, si falta o no es una lista, informa un error de formato.
-
-La respuesta completa cargada en Mockachino está en [docs/mock/tasks.json](docs/mock/tasks.json). La misma URL se usa en el servicio Angular y en `dataGroups` de `ngsw-config.json`.
-
-Para editar los datos del mock: <https://www.mockachino.com/spaces/13417dd4-d40d-4e>. Mockachino no tiene cuentas: este enlace se deduce de la URL de lectura, así que cualquiera que la conozca puede editar el mock.
-
-### 4. Información disponible sin conexión
-
-- **La interfaz completa:** HTML, JavaScript, CSS, manifest e iconos, guardados por el service worker al instalarse.
-- **La última lista de tareas obtenida mientras el service worker controlaba la página**, durante un máximo de 7 días.
-- **El filtro**, porque se aplica en el navegador sobre la lista ya cargada.
-
-Sin conexión, el botón Actualizar sigue haciendo la petición y el service worker responde con la copia guardada.
-
-### 5. Sin datos, falla de la API y primera carga
-
-| Situación | Qué muestra la aplicación |
-| --- | --- |
-| Petición en curso | Indicador de carga; el botón Actualizar queda deshabilitado |
-| La API devuelve una lista vacía | "No hay tareas." |
-| El filtro no deja ninguna tarea | "No hay tareas pendientes." o "No hay tareas completadas." |
-| La API falla y no había tareas en pantalla | Mensaje de error y botón **Reintentar** |
-| La API falla y ya había tareas en pantalla | Se conservan las tareas y se muestra el error |
-| Sin conexión y sin datos guardados (el service worker responde `504`) | "Se necesita conexión para la primera carga de datos." |
-| La respuesta no cumple el formato del punto 2 | Error de formato |
-
-Además:
-
-- Un **aviso de sin conexión** aparece según `navigator.onLine` y los eventos `online`/`offline`. Es solo orientativo: no impide la petición, porque el service worker puede responder desde su caché.
-- Tras una consulta exitosa se muestra **"Datos obtenidos a las HH:MM"** y no "actualizados del servidor", porque la aplicación no puede saber si la respuesta vino de la red o del caché.
-- Nunca se muestran datos de ejemplo escritos en el código en lugar de la respuesta de la API.
-
-### 6. Cambios locales
-
-**No hay cambios locales.** La aplicación no usa `localStorage` ni IndexedDB.
-
-Lo único que se guarda en el navegador es el caché del service worker (Cache Storage). Para restablecerlo: DevTools → **Application** → **Storage** → **Clear site data**. Después hay que volver a abrir la aplicación con conexión para que guarde de nuevo la interfaz y los datos.
-
-## Requisitos
-
-- Node.js **22.x** y npm. Versiones usadas: Node **22.23.4** y npm **10.9.9**.
-- Chrome o Edge de escritorio para instalar la aplicación y probarla sin conexión.
-
-Con [nvm](https://github.com/nvm-sh/nvm), el archivo `.nvmrc` selecciona la versión de Node:
+Desde este directorio:
 
 ```bash
 nvm use
-```
-
-## Instalación y ejecución local
-
-```bash
 npm ci
-```
-
-Desarrollo (sin service worker):
-
-```bash
 npm start
 ```
 
-Compilación de producción servida como PWA en `http://localhost:8080`:
+Abrir manualmente <http://localhost:4200>. `npm start` no abre el navegador y no registra
+el service worker en desarrollo.
+
+Compilar sin iniciar un servidor:
+
+```bash
+npm run build
+```
+
+Probar producción/PWA en <http://localhost:8080>:
 
 ```bash
 npm run serve:pwa
 ```
 
-> El `package-lock.json` del repositorio base no coincidía con su `package.json` y `npm ci` fallaba. Se regeneró con `npm install` sin cambiar las versiones de Angular (18.2.14).
+El script real es `ng build && http-server -p 8080 -c-1 dist/pwa-api-cache/browser`.
+Para detener cada servidor, **Ctrl+C** en su terminal. `deactivate` sale del entorno Python.
 
-## Caché del service worker
+### URL y timeout de la API
 
-El service worker de Angular (`ngsw-worker.js`) se configura en `ngsw-config.json` con dos tipos de grupos.
+`src/app/api.config.ts` centraliza `API_BASE_URL` (`http://localhost:8000`) y
+`API_TIMEOUT_MS` (10 segundos). No había un sistema de entornos en el proyecto;
+se usa una configuración pequeña mediante tokens de Angular, sustituibles en pruebas.
+Para otro backend, cambiar el valor y **recompilar**. No se repite la dirección en servicios.
+Una PWA publicada por HTTPS también necesita API HTTPS para evitar contenido mixto.
+En otro dispositivo, `localhost` se refiere a ese dispositivo; la demostración prevista
+es local en el mismo equipo. No se añaden dependencias ni se actualiza Angular.
 
-### assetGroups
+## Contrato HTTP
 
-Guardan los archivos necesarios para **abrir la aplicación**:
+```typescript
+interface Contact {
+  id: string; // UUID canónico generado por Angular, también offline
+  name: string;
+  email: string;
+  phone: string;
+}
+```
 
-- `app`: `index.html`, JavaScript, CSS y manifest. Se descargan al instalar el service worker (`prefetch`).
-- `assets`: iconos y demás recursos de `public/assets/`. Se cambia de `lazy` a `prefetch` para que estén disponibles desde la primera instalación.
+Nombre obligatorio después de quitar espacios exteriores; correo y teléfono opcionales,
+representados por `""`, sin validación avanzada ni unicidad. La búsqueda es local.
 
-### dataGroups y estrategia elegida
+| Método | Respuesta |
+| --- | --- |
+| `GET /health` | `200`, `{ "status": "ok" }` |
+| `GET /api/contacts` | `200`, `{ "contacts": [...] }`; `[]` es válido |
+| `GET /api/contacts/{id}` | Contacto o `404` |
+| `PUT /api/contacts/{id}` | Crea (`201`) o reemplaza (`200`), devuelve el contacto |
+| `DELETE /api/contacts/{id}` | `204` sin cuerpo, aunque ya no exista |
 
-Guardan **respuestas de la API**. Hay un solo grupo, `tasks-api`, para el endpoint de tareas:
+PUT envía **solo** `{ "name": "...", "email": "...", "phone": "..." }`.
+Es reemplazo completo; no hay POST/PATCH. PUT con UUID de cliente y DELETE son
+idempotentes: una respuesta perdida puede provocar un reenvío, pero no un alta duplicada.
+No se promete ejecución exactamente una vez. Las respuestas se validan, incluidos UUID,
+tipos, nombre no vacío, ids únicos en la lista e identidad del contacto reconocido por PUT.
+`GET /health` y la consulta individual quedan disponibles en la API; la pantalla trabaja
+con la lista y no depende de una petición de health antes de sincronizar.
 
-| Opción | Valor | Significado |
-| --- | --- | --- |
-| `strategy` | `freshness` | Primero intenta la red; si falla, usa la copia guardada |
-| `timeout` | `5s` | Si la red tarda más de 5 segundos, usa la copia guardada |
-| `maxAge` | `7d` | Una copia con más de 7 días deja de usarse |
-| `maxSize` | `10` | Máximo de respuestas guardadas (no de tareas dentro de la lista) |
+## Arquitectura y persistencia
 
-Se elige `freshness` porque prioriza mostrar los datos más recientes cuando hay conexión y recurre al caché solo cuando la red no responde.
+| Archivo | Responsabilidad |
+| --- | --- |
+| `contact.ts` | Modelo, normalización y validación de respuestas |
+| `api.service.ts` | HTTP real mediante Observables y timeout, sin caché propia |
+| `local-storage.service.ts` | Lectura validada y escritura del documento local |
+| `contacts-store.service.ts` | Instantáneas inmutables, CRUD, cola y revisiones locales |
+| `contacts-sync.service.ts` | Conectividad orientativa y un único proceso ordenado |
+| `system-notifications.service.ts` | Permiso explícito y notificaciones del sistema mediante el service worker |
+| `contacts/contacts.component.*` | Formulario, búsqueda, confirmaciones y estados accesibles |
 
-## Instalación de la PWA y prueba sin conexión
+Los archivos de la tabla están en `src/app/`. La clave **`pwa-contacts.state.v1`**
+de `localStorage` contiene un documento:
 
-Usar Chrome o Edge de escritorio, con la compilación de producción (`npm run serve:pwa`) abierta en `http://localhost:8080`. En modo desarrollo (`npm start`) el service worker no se registra.
+```typescript
+interface LocalState {
+  version: 1;
+  contacts: Contact[];
+  pending: (
+    | { operationId: string; type: 'put'; contact: Contact }
+    | { operationId: string; type: 'delete'; contactId: string }
+  )[];
+  rejected?: { operationId: string; status: number | null; message: string };
+}
+```
 
-### 1. Primera carga con conexión
+Cada cambio calcula agenda y cola y las persiste en **una misma escritura** antes de
+publicar éxito. Cada operación tiene UUID propio y una copia de sus datos: no se fusionan
+ni compactan operaciones. Las eliminaciones sobreviven a las recargas.
 
-1. Abrir `http://localhost:8080` y comprobar que aparecen las tareas.
-2. Abrir DevTools → **Application** → **Service Workers** y esperar a que `ngsw-worker.js` figure como *activated and is running*. Mantener desactivado **Bypass for network**.
-3. **Recargar la página.** La primera consulta ocurre antes de que el service worker controle la página, así que esa respuesta no queda guardada.
-4. En **Cache Storage** comprobar que existen las entradas `ngsw:/:<hash>:assets:app:cache` (interfaz) y `ngsw:/:1:data:tasks-api:cache` (respuesta de la API).
+Si falla la escritura por cuota o permisos, se conservan el estado anterior y el formulario,
+sin enviar la edición no guardada. Si falla guardar el reconocimiento del servidor,
+la operación continúa pendiente y se volverá a enviar de forma idempotente.
+Si falla guardar una lista descargada, tampoco se reemplaza la agenda visible.
 
-### 2. Manifest e instalación
+JSON corrupto, datos inválidos o versiones desconocidas **no se borran ni se reemplazan
+automáticamente**; se bloquean edición y sincronización. La pantalla permite volver a
+leer o restablecer **con confirmación de pérdida de datos locales**. Antes de restablecer,
+se puede copiar el valor original desde DevTools → Application → Local Storage.
+El restablecimiento afecta solo a esta clave; no borra el servidor ni otros datos del sitio.
 
-1. En **Application** → **Manifest** comprobar el nombre "Lista de tareas", el nombre corto "Tareas", los iconos y la URL de inicio, sin errores.
-2. Instalar desde el icono de instalación de la barra de direcciones (o menú ⋮ → **Instalar Lista de tareas**).
-3. Abrir la app instalada y comprobar que se abre en una ventana propia, con el nombre y el icono del tilde.
+**`localStorage` no es un respaldo.** Borrar datos del sitio elimina también los cambios
+no sincronizados. Los datos pertenecen al origen y perfil del navegador: los puertos
+4200 y 8080 tienen agendas/colas distintas. No usar simultáneamente ambos como editores
+de la misma agenda del servidor.
 
-### 3. Recarga sin conexión
+## Sincronización y estados
 
-1. En DevTools → **Network** activar **Offline**.
-2. Recargar normalmente, sin borrar datos ni anular el service worker.
-3. Comprobar que se muestran la interfaz, el aviso de sin conexión y las tareas guardadas.
-4. Probar los filtros y pulsar **Actualizar**: las tareas siguen apareciendo porque el service worker responde con la copia guardada.
-5. Desactivar **Offline** y pulsar **Actualizar** para volver a obtener los datos de la red.
+1. Se carga y muestra primero el documento local, sin esperar a la red.
+2. Se intenta sincronizar al iniciar, guardar un cambio local, recibir `online` o pulsar
+   **Sincronizar/Reintentar sincronización**, siempre con la app abierta. Además, se
+   comprueban los pendientes cada **5 minutos** y se intenta enviarlos si el navegador
+   parece online, no hay una operación rechazada y no existe otra sincronización en curso.
+3. `navigator.onLine` y los eventos son solo una orientación de **conectividad del navegador**:
+   no comprueban ni la API ni el servidor frontend, y tampoco garantizan acceso a Internet.
+   Si indica offline se conserva la cola; si indica online se intenta realmente el HTTP,
+   que puede fallar. La PWA puede seguir abierta aunque el servidor frontend esté detenido.
+4. Solo existe un proceso: envía PUT/DELETE **estrictamente en orden**. Retira cada
+   operación por `operationId` solo después de éxito HTTP y de persistir su retirada,
+   conservando las nuevas operaciones que lleguen durante la petición.
+5. Red, timeout y `5xx` detienen la pasada conservando pendientes. No hay bucles rápidos:
+   la siguiente comprobación periódica podrá reintentar, o se puede pulsar el botón sin
+   esperar. Esto permite recuperarse cuando vuelve la API aunque el navegador no haya
+   perdido su conexión. `408`/`429` también permiten otro intento posterior.
+6. `422`, otros `4xx` no transitorios o un reconocimiento inválido bloquean esa operación;
+   el bloqueo se persiste incluso tras recargar. **Corregir operación rechazada** sustituye
+   explícitamente un PUT por otro con nuevo `operationId`, en el mismo lugar de la cola
+   y con el mismo UUID de contacto. No pisa ediciones/bajas posteriores. Una edición normal
+   solo agrega otro pendiente: no corrige automáticamente el que bloquea. También se puede
+   **Reintentar operación explícitamente**, por ejemplo después de reparar el servidor.
+   No hay descarte automático; un DELETE rechazado permite el reintento explícito.
+7. Solo sin pendientes se descarga la lista completa. Antes de aplicarla se comprueban cola
+   vacía y revisión local sin cambios. Si el GET envejeció, se descarta su respuesta y se
+   procesan los nuevos pendientes antes de volver a consultar. PUT nunca pisa la agenda
+   con su respuesta, que podría ser anterior a una edición local.
 
-### 4. Primera carga de datos sin conexión
+La UI separa guardado en dispositivo, pendientes, sincronización en curso, sincronizado
+y error. Muestra contador y última sincronización completa, y distingue validación local,
+almacenamiento, red, rechazo del servidor y respuesta inválida. Una agenda local vacía
+no significa que la API haya sido consultada: comprobar el estado de sincronización.
+La búsqueda sin resultados tiene un mensaje diferente. Un error nunca se sustituye
+silenciosamente por contactos de ejemplo ni borra la agenda visible.
 
-Para ver el mensaje "Se necesita conexión para la primera carga de datos.":
+El guardado local correcto se confirma en verde con **«Cambios locales guardados»**;
+no significa que la API ya los haya recibido. Los fallos de conexión, timeout o disponibilidad
+(`502`/`503`/`504`) muestran un aviso de cambios sin sincronizar, sin un error técnico rojo.
+Si no quedan pendientes, el aviso indica que no se pudo actualizar la agenda desde la API,
+en lugar de afirmar que hay cambios por enviar. Los errores de validación, almacenamiento
+y otros errores reales del servidor siguen mostrándose como errores.
 
-1. En **Application** → **Storage**, pulsar **Clear site data**.
-2. Abrir `http://localhost:8080` con conexión **una sola vez, sin recargar**, y esperar a que el service worker figure como activo. La interfaz queda guardada y la respuesta de la API no.
-3. Activar **Offline** y recargar.
+Si la pasada envió cambios, confirmó su retirada local de la cola y completó la descarga
+final, aparece el aviso verde **«Cambios sincronizados con la API»**, con botón para cerrarlo.
+No aparece si la pasada falla ni por una consulta sin cambios pendientes; se limpia ante
+nuevos cambios para no confundirse con una confirmación de esas ediciones. Es un aviso
+**dentro de la app**, que no requiere permisos. Opcionalmente también puede mostrarse
+una notificación del sistema si el usuario lo autoriza, como se describe más abajo.
 
-Después de esta prueba, repetir el paso 1 para volver a guardar los datos.
+El intervalo se define en `AUTO_SYNC_INTERVAL_MS` de `contacts-sync.service.ts` y se inicia
+al crear el servicio; recargar reinicia el temporizador (además del intento inicial inmediato).
+No realiza consultas periódicas si la cola está vacía, está bloqueada o el navegador indica
+offline. Los navegadores pueden retrasar los temporizadores de pestañas en segundo plano
+o suspendidas: los cinco minutos no son una garantía de ejecución exacta. No funciona
+con la app cerrada. El temporizador se ejecuta fuera de la zona de Angular para no retrasar
+la estabilidad inicial ni el registro del service worker, y se cancela al destruir el servicio.
 
-### Reiniciar desde cero
+### Notificaciones del sistema (opcionales, con la app abierta)
 
-En **Application** → **Storage**, **Clear site data** borra el service worker y todos los cachés. Después hay que volver a hacer la primera carga con conexión.
+1. Usar la compilación PWA (`npm run serve:pwa`) en `http://localhost:8080`, o HTTPS
+   al publicar. En `npm start` el worker está desactivado: se mantienen los avisos internos
+   y la pantalla indica cómo probar la versión PWA.
+2. Pulsar **Activar notificaciones**. Solo ese clic llama a `Notification.requestPermission()`;
+   no se pide permiso automáticamente al abrir ni desde el temporizador.
+3. Si se concede, cada pasada que envíe cambios y termine su reconciliación muestra
+   **Agenda de contactos — Cambios sincronizados con la API**, con el icono de contactos.
+   No se notifica por un GET aislado, un guardado únicamente local o una pasada fallida.
+4. Si se bloquea, se informa en pantalla y no se insiste. Cambiar el permiso desde los
+   ajustes del sitio y volver a la app o pulsar **Actualizar permisos**. Si se cierra la
+   solicitud sin decidir, se puede volver a pulsar el botón de activación.
 
-## Limitaciones
+Se utiliza `ServiceWorkerRegistration.showNotification()` del worker Angular existente,
+sin modificar el backend, añadir servicios externos, suscripciones push ni permisos en
+el manifiesto. El mensaje es genérico: no muestra nombres, correos ni teléfonos.
+Una etiqueta fija permite reemplazar avisos anteriores en vez de acumularlos.
 
-- **Hace falta una primera carga con conexión.** Si la aplicación nunca se abrió con conexión, no se puede abrir sin conexión. Si se guardó la interfaz pero no la respuesta de la API, se muestra el aviso de primera carga.
-- **Los datos tienen que cargarse con el service worker ya activo.** La primera consulta puede ocurrir antes de que el service worker controle la página; en ese caso hay que recargar o pulsar Actualizar.
-- **El service worker tiene que terminar de guardar la interfaz.** Si se pierde la conexión mientras todavía descarga los archivos, queda en modo degradado y no puede abrir la aplicación sin conexión hasta que vuelva a tener red.
-- **El caché vence a los 7 días** y se pierde si se borran los datos del sitio o el navegador libera espacio.
-- **La aplicación no distingue entre datos de la red y datos del caché.**
+El aviso dentro de la app **siempre se conserva** como respaldo. Un navegador no compatible,
+HTTP no seguro, permiso denegado, worker no listo o fallo al mostrar la notificación no
+afectan a contactos, cola ni sincronización. La espera del worker está limitada a 5 segundos,
+fuera de la zona de Angular; si no está listo, se informa y el siguiente éxito podrá intentar
+notificar de nuevo. Las preferencias de notificaciones del sistema operativo (por ejemplo,
+No molestar) pueden impedir un banner aunque el navegador tenga permiso.
 
-## Evidencias
+Chrome/Chromium o Edge de escritorio son el entorno de demostración previsto. En móviles
+la disponibilidad depende del navegador, sistema y, en algunos casos, instalación de la PWA;
+no se promete compatibilidad universal. La app no sincroniza cerrada ni recibe mensajes push,
+aunque una notificación ya mostrada pueda seguir en el centro de notificaciones del sistema.
 
-Capturas tomadas en Chromium sobre la compilación de producción (`npm run serve:pwa`).
+## PWA: interfaz y datos son cosas distintas
 
-### Lista cargada con el service worker activo
+- **Service worker / Cache Storage:** `ngsw-config.json` conserva HTML, JS, CSS, manifiesto
+  e iconos con `prefetch`, para abrir la interfaz offline. Se eliminó `tasks-api` y no se
+  añadió un `dataGroup` de contactos. El backend usa `Cache-Control: no-store`.
+- **`localStorage`:** conserva contactos y cola; no depende del caché HTTP ni del service worker.
+- Se mantienen rutas hash y registro del worker solo en producción. Los iconos de
+  instalación y el favicon reutilizan el símbolo de contactos de la cabecera, en lavanda
+  sobre fondo oscuro. Los PNG incluyen tamaños adaptables (`maskable`) y Apple Touch.
+  La fuente está en `public/assets/icons/contact.svg`; para regenerarlos se puede ejecutar
+  `python3 scripts/generate-icons.py` con `rsvg-convert` (librsvg) instalado. Los PNG ya
+  están incluidos: no hace falta esa herramienta para instalar, compilar o usar la app.
+- Hace falta una **primera carga online completa** y esperar a que el service worker
+  quede activo y controle la página. Recargar online una vez antes de probar offline.
+  Tener contactos locales no basta si el navegador nunca guardó la interfaz.
+- Una instalación antigua puede seguir mostrando la versión de tareas hasta que se active
+  la actualización; cerrar todas sus ventanas y volver a abrir online. No borrar los datos
+  del sitio como actualización rutinaria: eso eliminaría pendientes de la agenda.
 
-La lista coincide con el JSON del mock y `ngsw-worker.js` figura como *activated and is running* y controla `http://localhost:8080/#/`.
+No hay autenticación, conflictos entre dispositivos, múltiples pestañas editoras,
+Background Sync, notificaciones push, IndexedDB ni garantía de sincronización con la app cerrada.
+Alcance: **un usuario, un dispositivo y una sola pestaña editora activa**; última escritura
+recibida gana. No exponer esta API sin protección con información privada.
 
-![Lista cargada](docs/evidencias/1-lista.png)
+## Pruebas
 
-### Instalación
+```bash
+npm test -- --watch=false --browsers=ChromeHeadless
+```
 
-Chromium ofrece instalar la aplicación con el nombre "Lista de tareas" y el icono del manifest.
+Con Chromium en Linux, si Karma no lo encuentra:
 
-![Diálogo de instalación](docs/evidencias/2-instalar.png)
+```bash
+CHROME_BIN=/usr/bin/chromium npm test -- --watch=false --browsers=ChromeHeadless
+```
 
-Una vez instalada, la aplicación se abre en una ventana propia, sin barra de direcciones ni pestañas, con el título "Lista de tareas" y el icono del tilde.
+Las pruebas Jasmine/Karma usan `HttpTestingController` y `MemoryStorage`, nunca la API
+ni los datos reales del navegador. Cubren almacenamiento, validación, orden, idempotencia
+del reintento en el cliente, exclusión de procesos, ediciones durante PUT/GET, bloqueos
+persistentes, reintentos periódicos con reloj simulado y avisos en componentes. Los permisos
+y las notificaciones del sistema se simulan con `FakeNotificationsBrowser`: las pruebas
+unitarias no muestran solicitudes ni notificaciones reales.
+El contrato del servidor tiene sus pruebas en el otro proyecto.
 
-![Aplicación instalada](docs/evidencias/2-instalada.png)
-
-### Recarga sin conexión
-
-Con **Offline** activo en DevTools y después de recargar, se muestran la interfaz, el aviso de sin conexión y las tareas. En Network todo sale del service worker (0 B transferidos). La consulta a `tasks` falla en la red y el service worker responde con la copia guardada, como indica la estrategia `freshness`.
-
-![Recarga sin conexión](docs/evidencias/3-offline.png)
+Guía de aceptación manual: [docs/pruebas-contactos.md](docs/pruebas-contactos.md).
+Resultados ejecutados: [docs/verificacion-contactos.md](docs/verificacion-contactos.md).

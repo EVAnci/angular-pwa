@@ -1,0 +1,175 @@
+<ng-container *ngIf="vm$ | async as vm">
+  <section class="sync-panel" [class.is-syncing]="vm.sync.phase === 'syncing'"
+    [class.is-synced]="vm.sync.phase === 'synced'" aria-label="Conexión y sincronización">
+    <p class="eyebrow">Estado de tu agenda</p>
+    <p class="connection"><span class="connection-dot" [class.offline]="!vm.online" aria-hidden="true"></span>
+      {{ vm.online ? 'Navegador con conexión aparente' : 'Navegador sin conexión' }}
+      <span class="muted">· Indicador orientativo: no comprueba la API ni el servidor frontend.</span>
+    </p>
+    <div class="toolbar">
+      <div class="sync-summary" role="status" aria-live="polite">
+        <strong [ngSwitch]="vm.sync.phase">
+          <span *ngSwitchCase="'syncing'">Sincronizando…</span>
+          <span *ngSwitchCase="'synced'">Sincronizado con la API</span>
+          <span *ngSwitchCase="'error'">{{ vm.sync.issue?.kind === 'network'
+            ? (vm.state?.pending?.length ? 'Cambios locales sin sincronizar' : 'Sincronización no disponible')
+            : 'No se pudo completar la sincronización' }}</span>
+          <span *ngSwitchCase="'pending'">Cambios locales sin sincronizar</span>
+          <span *ngSwitchDefault>Almacenamiento del dispositivo · Sin confirmación actual de la API</span>
+        </strong>
+        <p class="status pending-count" *ngIf="vm.state"><span class="count-badge">{{ vm.state.pending.length }}</span> operaciones pendientes</p>
+        <p class="status" *ngIf="vm.sync.lastSyncedAt">Última sincronización completa: {{ vm.sync.lastSyncedAt | date: 'HH:mm:ss' }}.</p>
+        <p class="status">Reintento automático cada 5 minutos si hay pendientes, con la app abierta.</p>
+      </div>
+      <button type="button" class="secondary sync-button" (click)="sync.synchronize()"
+        [disabled]="!vm.state || !vm.online || vm.sync.phase === 'syncing' || !!vm.state.rejected">
+        <svg class="sync-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 7v5h-5M4 17v-5h5" />
+          <path d="M6.1 7a7 7 0 0 1 11.6-1L20 9M4 15l2.3 3A7 7 0 0 0 17.9 17" />
+        </svg>
+        {{ vm.sync.phase === 'error' ? 'Reintentar sincronización' : 'Sincronizar' }}
+      </button>
+    </div>
+    <div class="success sync-notification" *ngIf="vm.syncNotification as notification" role="status">
+      <span>{{ notification }}</span>
+      <button type="button" class="secondary" (click)="sync.dismissNotification()" aria-label="Cerrar aviso de sincronización">Cerrar</button>
+    </div>
+    <div *ngIf="vm.sync.issue as issue" [class.notice]="issue.kind === 'network'"
+      [class.error]="issue.kind !== 'network'" [attr.role]="issue.kind === 'network' ? 'status' : 'alert'">
+      <strong *ngIf="issue.kind !== 'network'" [ngSwitch]="issue.kind">
+        <span *ngSwitchCase="'validation'">Validación del servidor</span>
+        <span *ngSwitchCase="'response'">Respuesta inválida</span>
+        <span *ngSwitchCase="'storage'">Error de almacenamiento</span>
+        <span *ngSwitchDefault>Error del servidor</span>
+      </strong>
+      <span>{{ issue.message }}</span>
+    </div>
+    <div class="notice" *ngIf="vm.state?.rejected">
+      <p>La cola está bloqueada en la primera operación rechazada. No se reintentará automáticamente, ni al recargar.</p>
+      <p *ngIf="vm.state?.rejected as rejected">{{ rejected.message }}</p>
+      <div class="actions">
+        <button type="button" *ngIf="vm.rejectedPut" (click)="openCorrection()">Corregir operación rechazada</button>
+        <button type="button" (click)="retryRejected()" [disabled]="!vm.online">Reintentar operación explícitamente</button>
+      </div>
+    </div>
+    <section class="notification-settings" aria-labelledby="notification-title">
+      <div>
+        <h2 id="notification-title">Notificaciones del sistema</h2>
+        <p class="status" [ngSwitch]="vm.systemNotifications.availability">
+          <span *ngSwitchCase="'insecure'">Se necesita HTTPS o localhost. Se mantienen los avisos dentro de la app.</span>
+          <span *ngSwitchCase="'unsupported'">Este navegador no admite estas notificaciones. Se mantienen los avisos dentro de la app.</span>
+          <span *ngSwitchCase="'development'">Disponibles en la versión PWA: usa npm run serve:pwa. En desarrollo se mantienen los avisos internos.</span>
+          <ng-container *ngSwitchDefault>
+            <ng-container [ngSwitch]="vm.systemNotifications.permission">
+              <span *ngSwitchCase="'granted'">Permiso concedido. Se notificará al completar la sincronización de cambios, con la app abierta.</span>
+              <span *ngSwitchCase="'denied'">Notificaciones bloqueadas. Puedes habilitarlas desde los permisos del sitio en el navegador.</span>
+              <span *ngSwitchDefault>Recibe un aviso del sistema cuando tus cambios se sincronicen, con la app abierta.</span>
+            </ng-container>
+          </ng-container>
+        </p>
+      </div>
+      <button type="button" class="secondary notifications-enable" *ngIf="vm.systemNotifications.availability === 'available' && vm.systemNotifications.permission === 'default'"
+        (click)="systemNotifications.enable()" [disabled]="vm.systemNotifications.requesting">
+        {{ vm.systemNotifications.requesting ? 'Solicitando permiso…' : 'Activar notificaciones' }}
+      </button>
+      <button type="button" class="secondary notifications-refresh" *ngIf="vm.systemNotifications.availability === 'available' && vm.systemNotifications.permission !== 'default'"
+        (click)="systemNotifications.refreshPermission()">Actualizar permisos</button>
+      <p class="notice notification-notice" *ngIf="vm.systemNotifications.notice" role="status">{{ vm.systemNotifications.notice }}</p>
+    </section>
+  </section>
+
+  <div class="error" *ngIf="vm.storageError" role="alert">
+    <strong>Error de almacenamiento local</strong><span>{{ vm.storageError }}</span>
+    <ng-container *ngIf="!vm.state">
+      <button type="button" (click)="store.reload(); sync.synchronize()">Volver a leer</button>
+      <button type="button" class="danger" (click)="recover()">Restablecer con confirmación</button>
+    </ng-container>
+  </div>
+
+  <ng-container *ngIf="vm.state as state">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">Tu directorio</p>
+        <h2>Contactos <span class="total-count">{{ state.contacts.length }}</span></h2>
+      </div>
+      <p class="status">Cerca, incluso sin conexión.</p>
+    </div>
+    <div class="toolbar agenda-toolbar">
+      <div class="search-field">
+        <label for="search">Buscar contactos</label>
+        <div class="search-input">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+            <circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4 4" />
+          </svg>
+          <input id="search" type="search" [(ngModel)]="search" placeholder="Nombre, correo o teléfono">
+        </div>
+      </div>
+      <button type="button" class="new-contact" (click)="openForm()">
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14" /></svg>
+        Nuevo contacto
+      </button>
+    </div>
+
+    <section class="contact-form" *ngIf="formOpen" aria-labelledby="form-title">
+      <p class="eyebrow">Guardado local</p>
+      <h2 id="form-title">{{ correcting ? 'Corregir operación rechazada' : editingId ? 'Editar contacto' : 'Nuevo contacto' }}</h2>
+      <p class="notice" *ngIf="correcting">Se sustituirá únicamente la operación rechazada. Si hay cambios posteriores del mismo contacto, conservarán sus datos y su orden.</p>
+      <form (ngSubmit)="save()" novalidate>
+        <div class="form-grid">
+          <div class="field name-field">
+            <label for="name">Nombre (obligatorio)</label>
+            <input id="name" name="name" type="text" [(ngModel)]="fields.name" required
+              [attr.aria-invalid]="formError && !fields.name.trim() ? 'true' : null" aria-describedby="form-help form-error">
+          </div>
+          <div class="field">
+            <label for="email">Correo (opcional)</label>
+            <input id="email" name="email" type="text" inputmode="email" [(ngModel)]="fields.email">
+          </div>
+          <div class="field">
+            <label for="phone">Teléfono (opcional)</label>
+            <input id="phone" name="phone" type="tel" [(ngModel)]="fields.phone">
+          </div>
+        </div>
+        <p id="form-help" class="status">Se guarda primero en este dispositivo, incluso si tienes conexión. Usa solo datos ficticios.</p>
+        <p id="form-error" class="error" *ngIf="formError" role="alert">{{ formError }}</p>
+        <div class="actions">
+          <button type="submit">{{ correcting ? 'Guardar corrección' : 'Guardar en el dispositivo' }}</button>
+          <button type="button" class="secondary" (click)="closeForm()">Cancelar</button>
+        </div>
+      </form>
+    </section>
+
+    <div class="feedback" *ngIf="feedback as message" [class.success]="message.kind === 'success'"
+      [class.error]="message.kind === 'error'" [attr.role]="message.kind === 'error' ? 'alert' : 'status'">
+      <svg *ngIf="message.kind === 'success'" aria-hidden="true" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="9" /><path d="m8 12 3 3 5-6" />
+      </svg>
+      <span>{{ message.message }}</span>
+    </div>
+    <p class="empty" *ngIf="state.contacts.length === 0">No hay contactos en la agenda local. Puedes crear uno, incluso sin conexión.</p>
+    <ng-container *ngIf="visibleContacts(state.contacts) as contacts">
+      <p class="empty" *ngIf="state.contacts.length > 0 && contacts.length === 0">No hay contactos que coincidan con la búsqueda.</p>
+      <ul class="contacts" aria-label="Contactos">
+        <li *ngFor="let contact of contacts; trackBy: trackById">
+          <div class="contact-identity">
+            <span class="contact-avatar" aria-hidden="true">{{ contact.name.slice(0, 1) | uppercase }}</span>
+            <div class="contact-details">
+              <h3>{{ contact.name }}</h3>
+              <p><span class="muted">Correo:</span> {{ contact.email || 'Sin correo' }}</p>
+              <p><span class="muted">Teléfono:</span> {{ contact.phone || 'Sin teléfono' }}</p>
+            </div>
+          </div>
+          <div class="actions">
+            <button type="button" class="secondary" (click)="openForm(contact)" [attr.aria-label]="'Editar a ' + contact.name">Editar</button>
+            <button type="button" class="danger" (click)="delete(contact)" [attr.aria-label]="'Eliminar a ' + contact.name">Eliminar</button>
+          </div>
+        </li>
+      </ul>
+    </ng-container>
+  </ng-container>
+  <footer>
+    <p>La sincronización funciona con la app abierta. Usa una sola pestaña para editar.</p>
+    <p>Los contactos y pendientes se guardan en este navegador y origen (4200 y 8080 tienen datos separados). Borrar los datos del sitio elimina los cambios no sincronizados. No es un respaldo ni una agenda para datos personales reales.</p>
+  </footer>
+</ng-container>

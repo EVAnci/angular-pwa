@@ -1,70 +1,76 @@
 {
-  "name": "Lista de tareas",
-  "short_name": "Tareas",
-  "description": "Consulta de tareas desde una API, disponible sin conexión.",
+  "name": "Agenda de contactos",
+  "short_name": "Contactos",
+  "description": "Agenda de contactos con guardado local y sincronización al recuperar la conexión.",
   "lang": "es",
-  "theme_color": "#00695c",
-  "background_color": "#f1f5f4",
+  "theme_color": "#0b101b",
+  "background_color": "#0b101b",
   "display": "standalone",
   "scope": "./",
   "start_url": "./",
   "icons": [
     {
-      "src": "assets/icons/icon-72x72.png",
+      "src": "assets/icons/contact-72x72.png",
       "sizes": "72x72",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "assets/icons/icon-96x96.png",
+      "src": "assets/icons/contact-96x96.png",
       "sizes": "96x96",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "assets/icons/icon-128x128.png",
+      "src": "assets/icons/contact-128x128.png",
       "sizes": "128x128",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "assets/icons/icon-144x144.png",
+      "src": "assets/icons/contact-144x144.png",
       "sizes": "144x144",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "assets/icons/icon-152x152.png",
+      "src": "assets/icons/contact-152x152.png",
       "sizes": "152x152",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "assets/icons/icon-192x192.png",
+      "src": "assets/icons/contact-192x192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "assets/icons/icon-384x384.png",
+      "src": "assets/icons/contact-256x256.png",
+      "sizes": "256x256",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/icons/contact-384x384.png",
       "sizes": "384x384",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "assets/icons/icon-512x512.png",
+      "src": "assets/icons/contact-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "assets/icons/icon-192x192.png",
+      "src": "assets/icons/contact-192x192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "maskable"
     },
     {
-      "src": "assets/icons/icon-512x512.png",
+      "src": "assets/icons/contact-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"

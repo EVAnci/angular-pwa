@@ -25,19 +25,5 @@
         ]
       }
     }
-  ],
-  "dataGroups": [
-    {
-      "name": "tasks-api",
-      "urls": [
-        "https://www.mockachino.com/13417dd4-d40d-4e/tasks"
-      ],
-      "cacheConfig": {
-        "strategy": "freshness",
-        "maxSize": 10,
-        "maxAge": "7d",
-        "timeout": "5s"
-      }
-    }
   ]
 }
